@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<head>
+<meta charset="utf-8">
+<style>
+body{
+    width:1060px;
+    margin:50px auto;
+}
+</style>
+<script type="text/javascript" src="./excanvas.js"></script>
+<script type="text/javascript" src="./histogram.js"></script>
+<script type="text/javascript" src="./pie.js"></script>
+<script language="javascript">
+// Almenos cree un hashmap para los indices y quizas eso nos ayuda
+
+var RADSIZE = 100;
+
+var Bars = new Array();
+	Bars.push({values: [8238,1983,3434], legend : '2001'});
+	Bars.push({values: [5638,9483,333], legend : '2002'});
+	Bars.push({values: [138,9483,3458],legend : '2003'});
+	Bars.push({values: [14338,1183,5666], legend : '2004'});
+
+	
+var PieceLegend = new Array();
+	PieceLegend.push('high');
+	PieceLegend.push('medium');
+	PieceLegend.push('low');
+	
+var BarColors = new Array();
+	BarColors.push('#A3A5A1');
+//	BarColors.push('#bb9408');
+//	BarColors.push('#bb00a1');
+//	BarColors.push('#565444');
+
+var PieceColors = new Array();
+	PieceColors.push('#0000dd');
+	PieceColors.push('#ff0000');
+	PieceColors.push('#01ff00');
+	
+	
+var HBars = {} ;	
+for (var i=0; i < Bars.length; i++) {
+	var str = new String(Bars[i].legend);
+	HBars[str] = i;
+}
+	
+var HLegend = {} ;	
+for (var i=0; i < PieceLegend.length; i++)
+	HLegend[PieceLegend[i]] = i;
+
+// =======================================================================
+
+function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+	
+function getMaxForP(p) {
+	var rv = p[0].value;
+	for(var i=1; i < p.length; i++) 
+		if (rv < p[i].value) rv=p[i].value;
+	var x = Math.ceil(rv/100) * 100;
+	if (rv < 1000) return rv
+	return x;
+}
+
+function sumaTodos(arr,idx) {
+	var rv = arr[idx].values[0];
+	for (var k=1; k < arr[idx].values.length; k++)
+		rv += arr[idx].values[k];
+	return rv;
+}
+
+function getMax() {
+	var rv = new Number(sumaTodos(Bars,0));
+	var num = new Number(0);
+	for(var i=1; i < Bars.length; i++) {
+		var num = sumaTodos(Bars,i);
+		if (rv < num) rv=num;
+	}
+	var x = Math.ceil(rv/100) * 100;
+	if (rv < 1000) return rv
+	return x;
+}
+
+
+function pBoton(etiqueta,metodo) {
+	return ("<input type=button value=\"" + etiqueta +"\" onclick=\"" + metodo + "\">");
+} 
+
+function wBotones() {
+	var istr = new String();
+	istr += "Values for the pie chart : &nbsp;" + pBoton('All','todos();');
+	for (var ctr =0; ctr < Bars.length; ctr++) {
+		istr += pBoton(Bars[ctr].legend,"botEscogido('" + String(Bars[ctr].legend) + "');");
+	}
+	istr +="<br/> Values for the histogram : &nbsp;" + pBoton('All','todos();');
+	for (var ctr =0; ctr < PieceLegend.length; ctr++) {
+		istr += pBoton(PieceLegend[ctr],"botHistogram('" + String(PieceLegend[ctr]) + "');");
+	}	
+	document.getElementById('botones').innerHTML=istr;
+	delete istr;
+}
+
+function canvasReset(ptr) {
+	var context = ptr.getContext('2d');
+	context.clearRect(0, 0, ptr.width, ptr.height);
+}
+
+function todos() {
+	var kmon = new Array();
+	var acum = new Array(PieceLegend.length);
+	var total = new Number(0);
+	for (var i=0; i < Bars.length; i++) {
+		var virinf = 0;
+		for (var j = 0; j < Bars[i].values.length; j++) {
+			acum[j] +=Bars[i].values[j];
+			virinf +=Bars[i].values[j];
+			total +=Bars[i].values[j];
+		}
+		kmon.push({value : virinf, legend : Bars[i].legend});
+	}
+	dibujaHistograma(kmon);
+	var pieces = new Array();
+	for (var i=0; i < acum.length; i++)
+		pieces.push({ percent: Number(acum[i]/total) });
+	dibujaPie(RADSIZE,pieces);
+	delete kmon;
+	delete pieces;
+	delete acum;
+	delete total;
+}
+
+function seekPos(ano_) { return HBars[ano_]; }
+function seekType(param_) { return HLegend[param_]; }
+
+function botEscogido(param) {
+	var total = new Number(0);
+	var acum = new Array();
+	for (var j=0; j < Bars[0].values.length; j++)
+		acum.push(Number(0));
+	var i = seekPos(param);
+	for (var j = 0; j < Bars[i].values.length; j++) {
+		var num = Number(Bars[i].values[j])
+		acum[j] += num;
+		total +=num;
+	}
+	var pieces = new Array();
+	for (var k=0; k < acum.length; k++) {
+		pieces.push({ percent: Number(acum[k]/total) });
+	}
+	dibujaPie(0,pieces);
+	tablin(pieces,acum,param);
+	delete pieces;
+	delete acum;
+	delete total;
+}
+
+function botHistogram(param) {
+	var kmon = new Array();
+	var i = seekType(param);
+	for (var j=0; j < Bars.length; j++) {
+		kmon.push({value : Bars[j].values[i], legend : Bars[j].legend});
+	}
+	dibujaHistograma(kmon);
+	delete kmon;
+}
+
+
+function todos() {
+	var kmon = new Array();
+	var acum = new Array();
+	var num = new Number();
+	var total = new Number(0);
+	for (var j=0; j < Bars[0].values.length; j++)
+		acum.push(Number(0));
+	for (var i=0; i < Bars.length; i++) {
+		var virinf = 0;
+		for (var j = 0; j < Bars[i].values.length; j++) {
+			num = Number(Bars[i].values[j]);
+			acum[j] +=num;
+			virinf +=num;
+			total +=num;
+		}
+		kmon.push({value : virinf, legend : Bars[i].legend});
+	}
+	dibujaHistograma(kmon);
+	var pieces = new Array();
+	for (var i=0; i < acum.length; i++) {
+		pieces.push({ percent: Number(acum[i]/total) });
+	}
+	dibujaPie(RADSIZE,pieces);
+	tablin(pieces,acum,'All');
+	delete kmon;
+	delete pieces;
+	delete acum;
+	delete total;
+}
+
+function tablin(piePrcnt,pieceVal,titulo) {
+	var suma = new Number(0);
+	var istr = new String("<table border=\"0\" cellpadding=\"3\" cellspacing=\"4\">");
+	istr += "<tr><th colspan=\"4\">Data for:" + titulo;
+	//istr += "<tr><th colspan=\"4\">Legend";
+	for (var k=0; k < piePrcnt.length; k++) {
+		istr += "<tr><td bgcolor=\"" + PieceColors[k] + "\">&nbsp;&nbsp;&nbsp;";
+		istr += "<td>" + PieceLegend[k] + "<td style=\"text-align:right\">" + numberWithCommas(pieceVal[k])
+		istr += "<td>" + Number(piePrcnt[k].percent*100).toFixed(1) + " %";
+		suma += pieceVal[k];
+	}
+	istr +="<tr><td><td>Total:<td style=\"text-align:right\">" + numberWithCommas(suma) + "<td>";
+	istr += "</table>";
+	document.getElementById("tablita").innerHTML = istr;
+	delete istr;
+}
+
+function dibujaHistograma(barras) {
+	var canvas=document.getElementById("cv");
+	canvasReset(canvas);
+    var myGraph = new Graph({
+           canvas : canvas,
+           maxValue : getMax(),
+           bars : Bars.length,
+           gridOn: 0,
+		   axisYOff : 1,
+           grupos: 2 });
+     myGraph.resetLabels();
+	 for (var i=0; i < barras.length; i++) 
+		myGraph.drawBar(barras[i].value,BarColors[i%BarColors.length],Bars[i].legend,1,0);
+}
+function dibujaPie(radsize,pieces) {
+    var canvas2 = document.getElementById("cv2"); 
+	canvasReset(canvas2);
+    var myGraph2 = new PieGraph({
+        canvas: canvas2,
+		radius : radsize,
+    });	
+	myGraph2.resetPie();
+	myGraph2.resetLegend();
+	for (var i=0; i < pieces.length; i++) {
+		myGraph2.drawPiece(pieces[i].percent,PieceColors[i%PieceColors.length]);
+		myGraph2.writeLegend(PieceLegend[i],PieceColors[i%PieceColors.length]);
+	}
+}
+
+
+</script>
+</head>
+<body bgcolor="#ffFFff" onload="todos();wBotones();">
+<div id="dashboardDV">
+<!-- I don't get why I cannot use tables! 
+     I want this objects to be in a tabular form
+    Tabular as in tables!
+-->
+<table>
+ <tr><td align="vtop">
+	<canvas id="cv" height="400" width="480">
+	</canvas>
+ <td align="vtop">
+	<canvas id="cv2" height="400" width="300">
+	</canvas>
+ <td align="vtop">
+ <div id="tablita">
+
+ </div>
+</table>
+<div id="botones">
+</div>
+</div><br/>
+
+</body>
